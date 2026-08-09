@@ -75,7 +75,7 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
       title="Weather"
       state={state}
       toolbar={
-        <div className="city-search" ref={boxRef}>
+        <div className="search-box" ref={boxRef}>
           <input
             className="input"
             style={{ width: '100%' }}
@@ -87,7 +87,7 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
             aria-label="Search for a city"
           />
           {open && results.length > 0 && (
-            <ul className="city-results">
+            <ul className="search-results">
               {results.map((r) => (
                 <li key={`${r.latitude},${r.longitude}`}>
                   <button type="button" onClick={() => choose(r)}>
