@@ -117,6 +117,16 @@ export type Stocks = {
   quotes: Quote[]
 }
 
+/** One hit from the watchlist symbol search. */
+export type SymbolResult = {
+  symbol: string
+  name: string
+  /** Exchange short name, e.g. "NasdaqGS", "NYSE". Absent on SEC fallback results. */
+  exchange?: string
+  /** "EQUITY" | "ETF" | "CRYPTOCURRENCY" | "INDEX" | … */
+  quoteType?: string
+}
+
 // ── FX ────────────────────────────────────────────────────────────────────────
 
 export type FxPair = {

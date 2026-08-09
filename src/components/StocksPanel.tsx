@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePanel } from '../hooks/usePanel'
 import { PanelCard } from './PanelCard'
 import { Sparkline } from './Sparkline'
 import { Delta } from './Delta'
-import type { Stocks } from '../types/dashboard'
+import type { Envelope, Stocks, SymbolResult } from '../types/dashboard'
 
 type Props = {
   symbols: string[]
@@ -12,6 +12,9 @@ type Props = {
 }
 
 type SortMode = 'custom' | 'change'
+
+/** Mirrors SYMBOL_RE on the server, so a typed-out ticker is rejected here first. */
+const TICKER_RE = /^[A-Z0-9.^=-]{1,15}$/
 
 function formatPrice(value: number, currency: string): string {
   const digits = value < 10 ? 4 : 2
@@ -28,8 +31,13 @@ function formatPrice(value: number, currency: string): string {
 
 export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) {
   const state = usePanel<Stocks>(`/api/stocks?symbols=${symbols.join(',')}`, autoRefreshMs)
-  const [draft, setDraft] = useState('')
   const [sort, setSort] = useState<SortMode>('custom')
+
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SymbolResult[]>([])
+  const [open, setOpen] = useState(false)
+  const [highlight, setHighlight] = useState(-1)
+  const boxRef = useRef<HTMLDivElement>(null)
 
   const quotes = useMemo(() => {
     const list = state.data?.quotes ?? []
@@ -37,15 +45,84 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
     return [...list].sort((a, b) => b.changePercent - a.changePercent)
   }, [state.data, sort])
 
-  const add = (e: React.FormEvent) => {
-    e.preventDefault()
-    const symbol = draft.trim().toUpperCase()
-    if (!symbol || symbols.includes(symbol)) {
-      setDraft('')
+  // Debounced company/ticker lookup. The `ignore` flag is load-bearing: without
+  // it, a slow response for an abandoned query can land after a newer one and
+  // overwrite it — the same out-of-order problem usePanel solves with requestId.
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setResults([])
+      setHighlight(-1)
       return
     }
-    onSymbolsChange([...symbols, symbol])
-    setDraft('')
+
+    let ignore = false
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`)
+        const envelope = (await res.json()) as Envelope<SymbolResult[]>
+        if (ignore) return
+        setResults(envelope.data ?? [])
+        setHighlight(-1)
+        setOpen(true)
+      } catch {
+        if (!ignore) setResults([])
+      }
+    }, 300)
+
+    return () => {
+      ignore = true
+      clearTimeout(timer)
+    }
+  }, [query])
+
+  // Close the dropdown on an outside click.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const addSymbol = (symbol: string) => {
+    if (!symbols.includes(symbol)) onSymbolsChange([...symbols, symbol])
+    setQuery('')
+    setResults([])
+    setOpen(false)
+    setHighlight(-1)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      setOpen(false)
+      setHighlight(-1)
+      return
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (results.length === 0) return
+      e.preventDefault()
+      setOpen(true)
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      setHighlight((h) => (h + step + results.length) % results.length)
+      return
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const picked = open && highlight >= 0 ? results[highlight] : undefined
+      if (picked) {
+        addSymbol(picked.symbol)
+        return
+      }
+      // Nothing highlighted — take the raw input as a ticker, so someone who
+      // already knows the symbol can still type "AMD ⏎" without waiting on a
+      // lookup. This is the behaviour the old free-text Add box had.
+      const raw = query.trim().toUpperCase()
+      if (TICKER_RE.test(raw)) addSymbol(raw)
+    }
   }
 
   return (
@@ -65,6 +142,48 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
       }
       toolbar={
         <>
+          <div className="search-box" ref={boxRef}>
+            <input
+              className="input"
+              style={{ width: '100%' }}
+              type="search"
+              value={query}
+              placeholder="Search a company or ticker — e.g. Nvidia, BTC-USD"
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => results.length > 0 && setOpen(true)}
+              onKeyDown={onKeyDown}
+              role="combobox"
+              aria-expanded={open && results.length > 0}
+              aria-controls="symbol-results"
+              aria-autocomplete="list"
+              aria-activedescendant={highlight >= 0 ? `symbol-result-${highlight}` : undefined}
+              aria-label="Search for a company or ticker to add to the watchlist"
+            />
+            {open && results.length > 0 && (
+              <ul className="search-results" id="symbol-results" role="listbox">
+                {results.map((r, i) => (
+                  <li key={`${r.symbol}-${i}`} role="none">
+                    <button
+                      type="button"
+                      id={`symbol-result-${i}`}
+                      role="option"
+                      aria-selected={i === highlight}
+                      onClick={() => addSymbol(r.symbol)}
+                      onMouseEnter={() => setHighlight(i)}
+                    >
+                      {r.symbol}
+                      <span style={{ color: 'var(--ink-secondary)' }}>
+                        {' '}
+                        — {r.name}
+                        {r.exchange ? ` · ${r.exchange}` : ''}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div className="chip-row">
             {symbols.map((s) => (
               <span className="chip" key={s}>
@@ -80,18 +199,6 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
               </span>
             ))}
           </div>
-          <form className="inline-form" onSubmit={add}>
-            <input
-              className="input"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Add a ticker — e.g. AMD, BTC-USD"
-              aria-label="Add a ticker to the watchlist"
-            />
-            <button type="submit" className="btn">
-              Add
-            </button>
-          </form>
         </>
       }
     >

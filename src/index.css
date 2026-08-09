@@ -528,11 +528,12 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-.city-search {
+/* Shared by the weather city search and the markets symbol search. */
+.search-box {
   position: relative;
 }
 
-.city-results {
+.search-results {
   position: absolute;
   z-index: 20;
   top: calc(100% + 4px);
@@ -549,7 +550,7 @@ a {
   overflow-y: auto;
 }
 
-.city-results button {
+.search-results button {
   display: block;
   width: 100%;
   text-align: left;
@@ -560,7 +561,9 @@ a {
   font-size: 13px;
 }
 
-.city-results button:hover {
+/* aria-selected tracks keyboard navigation, so it shares the hover treatment. */
+.search-results button:hover,
+.search-results button[aria-selected='true'] {
   background: var(--surface-sunken);
 }
 
