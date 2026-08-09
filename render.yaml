@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: today-at-a-glance
+    runtime: node
+    plan: free
+    # --include=dev: the build needs vite/typescript, and `npm start` runs the
+    # server through tsx (a devDependency), so dev deps must stay installed.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health

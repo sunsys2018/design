@@ -1,3 +1,4 @@
+import path from 'node:path'
 import express from 'express'
 import dotenv from 'dotenv'
 
@@ -11,7 +12,8 @@ import rates from './routes/rates.js'
 dotenv.config({ path: '.env.local', quiet: true })
 
 const app = express()
-const port = Number(process.env.SERVER_PORT ?? 3001)
+// Render (and most PaaS hosts) inject PORT; SERVER_PORT remains the local-dev override.
+const port = Number(process.env.PORT ?? process.env.SERVER_PORT ?? 3001)
 
 // `?refresh=1` is handled per-route via wantsRefresh(), which bypasses that
 // one key's TTL. It deliberately is NOT a global cache clear: refreshing one
@@ -26,6 +28,16 @@ app.use('/api/rates', rates)
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() })
+})
+
+// In production the same Express process serves the built client, so the
+// React app's relative /api/* calls hit this server with no extra config.
+const distDir = path.resolve('dist')
+app.use(express.static(distDir))
+// SPA fallback: any non-API GET that isn't a static file gets index.html.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next()
+  res.sendFile(path.join(distDir, 'index.html'))
 })
 
 app.listen(port, () => {
