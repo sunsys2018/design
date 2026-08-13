@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl } from '../lib/api'
 import type { Envelope } from '../types/dashboard'
 
 export type PanelState<T> = {
@@ -40,7 +39,7 @@ export function usePanel<T>(path: string, autoRefreshMs = 0): PanelState<T> {
       const url = force ? `${path}${path.includes('?') ? '&' : '?'}refresh=1` : path
 
       try {
-        const res = await fetch(apiUrl(url))
+        const res = await fetch(url)
         if (!res.ok) throw new Error(`Request failed (HTTP ${res.status})`)
 
         const envelope = (await res.json()) as Envelope<T>

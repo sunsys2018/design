@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePanel } from '../hooks/usePanel'
-import { apiUrl } from '../lib/api'
 import { PanelCard } from './PanelCard'
 import { Sparkline } from './Sparkline'
 import type { Envelope, GeoResult, Weather } from '../types/dashboard'
@@ -37,7 +36,7 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
     }
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(apiUrl(`/api/weather/search?q=${encodeURIComponent(query)}`))
+        const res = await fetch(`/api/weather/search?q=${encodeURIComponent(query)}`)
         const envelope = (await res.json()) as Envelope<GeoResult[]>
         setResults(envelope.data ?? [])
         setOpen(true)
