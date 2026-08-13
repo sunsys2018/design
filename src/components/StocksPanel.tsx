@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePanel } from '../hooks/usePanel'
+import { apiUrl } from '../lib/api'
 import { PanelCard } from './PanelCard'
 import { Sparkline } from './Sparkline'
 import { Delta } from './Delta'
@@ -59,7 +60,7 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
     let ignore = false
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`)
+        const res = await fetch(apiUrl(`/api/stocks/search?q=${encodeURIComponent(q)}`))
         const envelope = (await res.json()) as Envelope<SymbolResult[]>
         if (ignore) return
         setResults(envelope.data ?? [])

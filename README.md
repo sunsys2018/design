@@ -11,6 +11,10 @@ cp .env.local.example .env.local
 npm run dev:all          # client on :5173, API on :3001
 ```
 
+Production uses two Render services from `render.yaml`: a static Vite frontend
+and a separate Node API. The static build receives the API's public origin via
+`VITE_API_BASE_URL`; locally it remains unset so Vite's `/api` proxy is used.
+
 ## Why there is a server
 
 Almost none of these sources allow direct browser access — Yahoo Finance, Google News/Trends,
@@ -54,7 +58,7 @@ being present.
 
 ```
 server/
-  index.ts              Express :3001
+  index.ts              Public, CORS-enabled Express API on :3001
   services/cache.ts     TTL cache + stale-on-error fallback
   services/fetchUpstream.ts
   routes/               one adapter per panel
