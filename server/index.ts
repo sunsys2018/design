@@ -1,4 +1,3 @@
-import path from 'node:path'
 import express from 'express'
 import dotenv from 'dotenv'
 
@@ -15,6 +14,16 @@ const app = express()
 // Render (and most PaaS hosts) inject PORT; SERVER_PORT remains the local-dev override.
 const port = Number(process.env.PORT ?? process.env.SERVER_PORT ?? 3001)
 
+// This API is intentionally public and credential-free. The static frontend
+// runs on a separate origin in production, so every response must opt in to
+// cross-origin reads. OPTIONS support keeps future non-simple requests safe.
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  next()
+})
+
 // `?refresh=1` is handled per-route via wantsRefresh(), which bypasses that
 // one key's TTL. It deliberately is NOT a global cache clear: refreshing one
 // panel must not discard the fallback data every other panel would need if its
@@ -28,16 +37,6 @@ app.use('/api/rates', rates)
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() })
-})
-
-// In production the same Express process serves the built client, so the
-// React app's relative /api/* calls hit this server with no extra config.
-const distDir = path.resolve('dist')
-app.use(express.static(distDir))
-// SPA fallback: any non-API GET that isn't a static file gets index.html.
-app.use((req, res, next) => {
-  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next()
-  res.sendFile(path.join(distDir, 'index.html'))
 })
 
 app.listen(port, () => {
