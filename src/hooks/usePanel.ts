@@ -19,8 +19,10 @@ export type PanelState<T> = {
  * `path` must be a stable string (build it with a template literal in the
  * caller); it doubles as the effect dependency, so a changing query string
  * re-fetches on its own.
+ * `forceTrigger` can be passed to trigger a force-refresh (bypassing cache)
+ * across all panels when changed.
  */
-export function usePanel<T>(path: string, autoRefreshMs = 0): PanelState<T> {
+export function usePanel<T>(path: string, autoRefreshMs = 0, forceTrigger?: number): PanelState<T> {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +32,7 @@ export function usePanel<T>(path: string, autoRefreshMs = 0): PanelState<T> {
 
   // Guards against a slow earlier request landing after a newer one.
   const requestId = useRef(0)
+  const isFirstMount = useRef(true)
 
   const load = useCallback(
     async (force = false) => {
@@ -62,12 +65,22 @@ export function usePanel<T>(path: string, autoRefreshMs = 0): PanelState<T> {
   )
 
   useEffect(() => {
-    void load()
+    void load(false)
   }, [load])
 
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
+    if (forceTrigger && forceTrigger > 0) {
+      void load(true)
+    }
+  }, [forceTrigger, load])
+
+  useEffect(() => {
     if (autoRefreshMs <= 0) return
-    const timer = setInterval(() => void load(), autoRefreshMs)
+    const timer = setInterval(() => void load(false), autoRefreshMs)
     return () => clearInterval(timer)
   }, [autoRefreshMs, load])
 

@@ -15,6 +15,7 @@ const DEFAULT_SYMBOLS = ['NVDA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA'
 const AUTO_REFRESH_MS = 5 * 60 * 1000
 
 type Theme = 'system' | 'light' | 'dark'
+type WeatherUnit = 'C' | 'F'
 
 export function DashboardPage() {
   const [place, setPlace] = useLocalStorage<Place>('dash.place', VANCOUVER)
@@ -23,11 +24,10 @@ export function DashboardPage() {
   const [topic, setTopic] = useLocalStorage<string>('dash.topic', 'top')
   const [theme, setTheme] = useLocalStorage<Theme>('dash.theme', 'system')
   const [autoRefresh, setAutoRefresh] = useLocalStorage<boolean>('dash.autoRefresh', true)
+  const [weatherUnit, setWeatherUnit] = useLocalStorage<WeatherUnit>('dash.weatherUnit', 'C')
 
-  // Bumping this key remounts every panel, which re-runs each usePanel fetch
-  // with `refresh=1`. Simpler and less error-prone than threading a ref to
-  // each panel's reload.
-  const [refreshKey, setRefreshKey] = useState(0)
+  // Incrementing forceTrigger instructs every panel to make an explicit ?refresh=1 upstream call
+  const [forceTrigger, setForceTrigger] = useState(0)
 
   const [askedForLocation, setAskedForLocation] = useLocalStorage<boolean>('dash.askedLocation', false)
 
@@ -82,7 +82,12 @@ export function DashboardPage() {
             <span aria-hidden="true">⏱</span> Auto-refresh {autoRefresh ? 'on' : 'off'}
           </button>
 
-          <button type="button" className="btn" onClick={() => setRefreshKey((k) => k + 1)}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setForceTrigger((k) => k + 1)}
+            title="Force refresh all panels with latest upstream data"
+          >
             <span aria-hidden="true">↻</span> Refresh all
           </button>
 
@@ -99,13 +104,35 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <main className="grid" key={refreshKey}>
-        <WeatherPanel place={place} onPlaceChange={setPlace} autoRefreshMs={autoMs} />
-        <NewsPanel topic={topic} onTopicChange={setTopic} autoRefreshMs={autoMs} />
-        <TrendsPanel autoRefreshMs={autoMs} />
-        <StocksPanel symbols={symbols} onSymbolsChange={setSymbols} autoRefreshMs={autoMs} />
-        <FxPanel base={fxBase} onBaseChange={setFxBase} autoRefreshMs={autoMs} />
-        <RatesPanel autoRefreshMs={autoMs} />
+      <main className="grid">
+        <WeatherPanel
+          place={place}
+          onPlaceChange={setPlace}
+          autoRefreshMs={autoMs}
+          unit={weatherUnit}
+          onUnitChange={setWeatherUnit}
+          forceTrigger={forceTrigger}
+        />
+        <NewsPanel
+          topic={topic}
+          onTopicChange={setTopic}
+          autoRefreshMs={autoMs}
+          forceTrigger={forceTrigger}
+        />
+        <TrendsPanel autoRefreshMs={autoMs} forceTrigger={forceTrigger} />
+        <StocksPanel
+          symbols={symbols}
+          onSymbolsChange={setSymbols}
+          autoRefreshMs={autoMs}
+          forceTrigger={forceTrigger}
+        />
+        <FxPanel
+          base={fxBase}
+          onBaseChange={setFxBase}
+          autoRefreshMs={autoMs}
+          forceTrigger={forceTrigger}
+        />
+        <RatesPanel autoRefreshMs={autoMs} forceTrigger={forceTrigger} />
       </main>
     </div>
   )

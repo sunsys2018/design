@@ -30,6 +30,11 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() })
 })
 
+// Unknown /api/* routes should return JSON 404, not HTML
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' })
+})
+
 // In production the same Express process serves the built client, so the
 // React app's relative /api/* calls hit this server with no extra config.
 const distDir = path.resolve('dist')
@@ -38,6 +43,12 @@ app.use(express.static(distDir))
 app.use((req, res, next) => {
   if (req.method !== 'GET' || req.path.startsWith('/api/')) return next()
   res.sendFile(path.join(distDir, 'index.html'))
+})
+
+// Global error handler
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[server error]', err)
+  res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' })
 })
 
 app.listen(port, () => {

@@ -18,7 +18,7 @@ const MAX_RESULTS = 8
  * SEC's fair-access policy wants a descriptive User-Agent carrying a contact
  * address; they throttle anonymous clients. Override with SEC_CONTACT.
  */
-const SEC_UA = `design-dashboard (${process.env.SEC_CONTACT ?? 'stanyang@nicolawealth.com'})`
+const SEC_UA = `design-dashboard (${process.env.SEC_CONTACT ?? 'admin@dashboard.local'})`
 
 export const DEFAULT_SYMBOLS = [
   'NVDA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'BTC-USD', 'ETH-USD',
@@ -103,6 +103,16 @@ async function quoteFor(symbol: string): Promise<Quote> {
 
 /** GET /api/stocks?symbols=NVDA,AAPL,BTC-USD */
 router.get('/', async (req, res) => {
+  if (req.query.symbols === '') {
+    res.json({
+      data: { quotes: [] },
+      fetchedAt: new Date().toISOString(),
+      stale: false,
+      source: SOURCE,
+    })
+    return
+  }
+
   const requested =
     typeof req.query.symbols === 'string' && req.query.symbols.trim()
       ? req.query.symbols.split(',').map((s) => s.trim().toUpperCase())
@@ -110,7 +120,12 @@ router.get('/', async (req, res) => {
 
   const symbols = [...new Set(requested.filter((s) => SYMBOL_RE.test(s)))].slice(0, 20)
   if (symbols.length === 0) {
-    res.status(400).json({ error: 'No valid symbols supplied' })
+    res.json({
+      data: { quotes: [] },
+      fetchedAt: new Date().toISOString(),
+      stale: false,
+      source: SOURCE,
+    })
     return
   }
 

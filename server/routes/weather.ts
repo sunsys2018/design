@@ -126,10 +126,18 @@ router.get('/', async (req, res) => {
   })
 
   // The cached payload carries whatever name was current when it was fetched;
-  // overwrite it so switching cities updates the label on a cache hit too.
-  if (envelope.data) envelope.data.location.name = name
+  // clone the object with the requested location name so we don't mutate the in-memory cache.
+  const responseData = envelope.data
+    ? {
+        ...envelope.data,
+        location: {
+          ...envelope.data.location,
+          name,
+        },
+      }
+    : null
 
-  res.json(envelope)
+  res.json({ ...envelope, data: responseData })
 })
 
 type GeocodingResponse = {
