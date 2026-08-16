@@ -5,10 +5,15 @@ import { Sparkline } from './Sparkline'
 import { Delta } from './Delta'
 import type { Envelope, Stocks, SymbolResult } from '../types/dashboard'
 
+const DEFAULT_SYMBOLS = [
+  'NVDA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'BTC-USD', 'ETH-USD',
+]
+
 type Props = {
   symbols: string[]
   onSymbolsChange: (symbols: string[]) => void
   autoRefreshMs: number
+  forceTrigger?: number
 }
 
 type SortMode = 'custom' | 'change'
@@ -17,7 +22,7 @@ type SortMode = 'custom' | 'change'
 const TICKER_RE = /^[A-Z0-9.^=-]{1,15}$/
 
 function formatPrice(value: number, currency: string): string {
-  const digits = value < 10 ? 4 : 2
+  const digits = value < 10 && value > -10 ? 4 : 2
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
@@ -29,8 +34,9 @@ function formatPrice(value: number, currency: string): string {
   }
 }
 
-export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) {
-  const state = usePanel<Stocks>(`/api/stocks?symbols=${symbols.join(',')}`, autoRefreshMs)
+export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs, forceTrigger }: Props) {
+  const queryParam = symbols.length > 0 ? symbols.join(',') : ''
+  const state = usePanel<Stocks>(`/api/stocks?symbols=${queryParam}`, autoRefreshMs, forceTrigger)
   const [sort, setSort] = useState<SortMode>('custom')
 
   const [query, setQuery] = useState('')
@@ -45,9 +51,7 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
     return [...list].sort((a, b) => b.changePercent - a.changePercent)
   }, [state.data, sort])
 
-  // Debounced company/ticker lookup. The `ignore` flag is load-bearing: without
-  // it, a slow response for an abandoned query can land after a newer one and
-  // overwrite it — the same out-of-order problem usePanel solves with requestId.
+  // Debounced company/ticker lookup.
   useEffect(() => {
     const q = query.trim()
     if (q.length < 2) {
@@ -117,9 +121,6 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
         addSymbol(picked.symbol)
         return
       }
-      // Nothing highlighted — take the raw input as a ticker, so someone who
-      // already knows the symbol can still type "AMD ⏎" without waiting on a
-      // lookup. This is the behaviour the old free-text Add box had.
       const raw = query.trim().toUpperCase()
       if (TICKER_RE.test(raw)) addSymbol(raw)
     }
@@ -135,6 +136,7 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
           value={sort}
           onChange={(e) => setSort(e.target.value as SortMode)}
           aria-label="Sort watchlist"
+          disabled={symbols.length === 0}
         >
           <option value="custom">My order</option>
           <option value="change">Top movers</option>
@@ -184,51 +186,69 @@ export function StocksPanel({ symbols, onSymbolsChange, autoRefreshMs }: Props) 
             )}
           </div>
 
-          <div className="chip-row">
-            {symbols.map((s) => (
-              <span className="chip" key={s}>
-                {s}
-                <button
-                  type="button"
-                  onClick={() => onSymbolsChange(symbols.filter((x) => x !== s))}
-                  aria-label={`Remove ${s} from watchlist`}
-                  title={`Remove ${s}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
+          {symbols.length > 0 && (
+            <div className="chip-row">
+              {symbols.map((s) => (
+                <span className="chip" key={s}>
+                  {s}
+                  <button
+                    type="button"
+                    onClick={() => onSymbolsChange(symbols.filter((x) => x !== s))}
+                    aria-label={`Remove ${s} from watchlist`}
+                    title={`Remove ${s}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </>
       }
     >
       <div>
-        {quotes.map((q) => (
-          <div className={`stat-row${q.error ? ' is-error' : ''}`} key={q.symbol}>
-            <div className="stat-label">
-              <span className="stat-name">{q.symbol}</span>
-              <span className="stat-sub">{q.error ? q.error : q.name}</span>
-            </div>
-
-            {!q.error && (
-              <Sparkline
-                values={q.history}
-                label={`${q.symbol} closing prices over the past month, ${q.monthChangePercent >= 0 ? 'up' : 'down'} ${Math.abs(q.monthChangePercent).toFixed(1)}%`}
-              />
-            )}
-
-            <div className="stat-value">
-              {q.error ? (
-                <span className="stat-sub">unavailable</span>
-              ) : (
-                <>
-                  <span className="amount">{formatPrice(q.price, q.currency)}</span>
-                  <Delta value={q.changePercent} />
-                </>
-              )}
-            </div>
+        {symbols.length === 0 ? (
+          <div className="empty-state" style={{ padding: '24px 12px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 12px', color: 'var(--ink-secondary)', fontSize: '13px' }}>
+              Your watchlist is currently empty.
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => onSymbolsChange(DEFAULT_SYMBOLS)}
+            >
+              Reset default watchlist
+            </button>
           </div>
-        ))}
+        ) : (
+          quotes.map((q) => (
+            <div className={`stat-row${q.error ? ' is-error' : ''}`} key={q.symbol}>
+              <div className="stat-label">
+                <span className="stat-name">{q.symbol}</span>
+                <span className="stat-sub">{q.error ? q.error : q.name}</span>
+              </div>
+
+              {!q.error && (
+                <Sparkline
+                  values={q.history}
+                  label={`${q.symbol} closing prices over the past month, ${q.monthChangePercent >= 0 ? 'up' : 'down'} ${Math.abs(q.monthChangePercent).toFixed(1)}%`}
+                  formatValue={(v) => formatPrice(v, q.currency)}
+                />
+              )}
+
+              <div className="stat-value">
+                {q.error ? (
+                  <span className="stat-sub">unavailable</span>
+                ) : (
+                  <>
+                    <span className="amount">{formatPrice(q.price, q.currency)}</span>
+                    <Delta value={q.changePercent} />
+                  </>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </PanelCard>
   )

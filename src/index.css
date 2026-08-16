@@ -44,7 +44,8 @@
 
   --shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 4px 12px rgba(11, 11, 11, 0.04);
   --radius: 12px;
-  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -200,6 +201,35 @@ a {
 
 .btn-icon {
   padding: 6px 9px;
+}
+
+.btn-sm {
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--surface-sunken);
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.segmented-control .btn {
+  border: none;
+  background: transparent;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+.segmented-control .btn.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .btn:disabled {
@@ -528,6 +558,14 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.precip-badge {
+  font-size: 9.5px;
+  color: var(--series-1);
+  font-weight: 600;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
 /* Shared by the weather city search and the markets symbol search. */
 .search-box {
   position: relative;
@@ -675,16 +713,71 @@ a {
 
 /* ── FX converter ──────────────────────────────────────────────────────────── */
 
+.fx-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .fx-controls {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .fx-controls .input {
   width: 92px;
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.fx-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.fx-presets .tab.is-active {
+  background: var(--surface-sunken);
+  border-color: var(--series-1);
+  color: var(--series-1);
+  font-weight: 600;
+}
+
+/* ── Sparkline Tooltip & Empty state ───────────────────────────────────────── */
+
+.sparkline-tooltip {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: tooltipFade 120ms ease-out;
+}
+
+@keyframes tooltipFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -4px);
+  }
+}
+
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  margin: 8px 0;
 }
 
 /* ── Rates ─────────────────────────────────────────────────────────────────── */

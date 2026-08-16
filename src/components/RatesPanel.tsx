@@ -17,8 +17,8 @@ const COUNTRY: Record<string, { flag: string; name: string }> = {
  * or red would editorialize. The Delta chip still reports the year's movement
  * with an arrow and a sign.
  */
-export function RatesPanel({ autoRefreshMs }: { autoRefreshMs: number }) {
-  const state = usePanel<Rates>('/api/rates', autoRefreshMs)
+export function RatesPanel({ autoRefreshMs, forceTrigger }: { autoRefreshMs: number; forceTrigger?: number }) {
+  const state = usePanel<Rates>('/api/rates', autoRefreshMs, forceTrigger)
 
   return (
     <PanelCard title="Home lending rates" state={state}>
@@ -60,6 +60,7 @@ export function RatesPanel({ autoRefreshMs }: { autoRefreshMs: number }) {
                         <Sparkline
                           values={s.history}
                           label={`${meta.name} ${s.label} over the past year, currently ${s.value}%`}
+                          formatValue={(v) => `${v.toFixed(2)}%`}
                         />
 
                         <div className="stat-value">

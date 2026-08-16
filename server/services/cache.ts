@@ -8,8 +8,32 @@ type Entry<T> = {
 
 const store = new Map<string, Entry<unknown>>()
 
+/** Maximum number of cache entries to prevent memory leaks in long-running processes. */
+const MAX_CACHE_ENTRIES = 500
+
 /** In-flight requests, so N simultaneous viewers cause one upstream fetch. */
 const inFlight = new Map<string, Promise<unknown>>()
+
+/** Periodically remove expired entries from the cache. */
+export function pruneExpiredCache(): number {
+  const now = Date.now()
+  let pruned = 0
+  for (const [key, entry] of store.entries()) {
+    if (entry.expiresAt < now) {
+      store.delete(key)
+      pruned++
+    }
+  }
+  return pruned
+}
+
+// Background cleanup every 10 minutes
+if (typeof setInterval !== 'undefined') {
+  const cleanupTimer = setInterval(pruneExpiredCache, 10 * 60 * 1000)
+  if (cleanupTimer && typeof cleanupTimer.unref === 'function') {
+    cleanupTimer.unref()
+  }
+}
 
 export type CacheOptions = {
   /** Cache key. Must include any query params that change the result. */
@@ -72,6 +96,14 @@ export async function getOrFetch<T>(
   try {
     const value = await pending
     const fetchedAt = new Date().toISOString()
+    if (store.size >= MAX_CACHE_ENTRIES) {
+      pruneExpiredCache()
+      // If still full, drop the oldest entry
+      if (store.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = store.keys().next().value
+        if (oldestKey) store.delete(oldestKey)
+      }
+    }
     store.set(key, { value, fetchedAt, expiresAt: Date.now() + ttl })
     return { data: value, fetchedAt, stale: false, source }
   } catch (err) {
@@ -99,4 +131,10 @@ export async function getOrFetch<T>(
 /** Read the `?refresh=1` flag a panel's refresh button sends. */
 export function wantsRefresh(query: unknown): boolean {
   return typeof query === 'object' && query !== null && (query as Record<string, unknown>).refresh === '1'
+}
+
+/** For tests: clear store */
+export function _clearStore(): void {
+  store.clear()
+  inFlight.clear()
 }

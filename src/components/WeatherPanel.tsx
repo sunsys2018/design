@@ -10,6 +10,9 @@ type Props = {
   place: Place
   onPlaceChange: (place: Place) => void
   autoRefreshMs: number
+  unit?: 'C' | 'F'
+  onUnitChange?: (unit: 'C' | 'F') => void
+  forceTrigger?: number
 }
 
 function dayName(iso: string, index: number): string {
@@ -17,10 +20,28 @@ function dayName(iso: string, index: number): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })
 }
 
-export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
+function toDisplayTemp(celsius: number, unit: 'C' | 'F'): number {
+  return unit === 'F' ? Math.round((celsius * 9) / 5 + 32) : Math.round(celsius)
+}
+
+function toDisplayWind(kmh: number, unit: 'C' | 'F'): { speed: number; unit: string } {
+  return unit === 'F'
+    ? { speed: Math.round(kmh * 0.621371), unit: 'mph' }
+    : { speed: Math.round(kmh), unit: 'km/h' }
+}
+
+export function WeatherPanel({
+  place,
+  onPlaceChange,
+  autoRefreshMs,
+  unit = 'C',
+  onUnitChange,
+  forceTrigger,
+}: Props) {
   const state = usePanel<Weather>(
     `/api/weather?lat=${place.latitude}&lon=${place.longitude}&name=${encodeURIComponent(place.name)}`,
     autoRefreshMs,
+    forceTrigger,
   )
 
   const [query, setQuery] = useState('')
@@ -69,11 +90,35 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
   }
 
   const w = state.data
+  const tempUnitSymbol = `°${unit}`
+  const windInfo = w ? toDisplayWind(w.current.windSpeed, unit) : null
 
   return (
     <PanelCard
       title="Weather"
       state={state}
+      actions={
+        onUnitChange ? (
+          <div className="segmented-control" role="group" aria-label="Temperature unit">
+            <button
+              type="button"
+              className={`btn btn-sm ${unit === 'C' ? 'is-active' : ''}`}
+              onClick={() => onUnitChange('C')}
+              aria-pressed={unit === 'C'}
+            >
+              °C
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${unit === 'F' ? 'is-active' : ''}`}
+              onClick={() => onUnitChange('F')}
+              aria-pressed={unit === 'F'}
+            >
+              °F
+            </button>
+          </div>
+        ) : undefined
+      }
       toolbar={
         <div className="search-box" ref={boxRef}>
           <input
@@ -88,8 +133,8 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
           />
           {open && results.length > 0 && (
             <ul className="search-results">
-              {results.map((r) => (
-                <li key={`${r.latitude},${r.longitude}`}>
+              {results.map((r, i) => (
+                <li key={`${r.name}-${r.latitude}-${r.longitude}-${i}`}>
                   <button type="button" onClick={() => choose(r)}>
                     {r.name}
                     <span style={{ color: 'var(--ink-secondary)' }}>
@@ -113,25 +158,26 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
             </span>
             <div style={{ minWidth: 0 }}>
               <div className="weather-temp">
-                {Math.round(w.current.temperature)}
-                {w.units.temperature}
+                {toDisplayTemp(w.current.temperature, unit)}
+                {tempUnitSymbol}
               </div>
               <div className="weather-meta">
-                {w.current.condition.label} · feels {Math.round(w.current.apparentTemperature)}
-                {w.units.temperature}
+                {w.current.condition.label} · feels {toDisplayTemp(w.current.apparentTemperature, unit)}
+                {tempUnitSymbol}
               </div>
               <div className="weather-meta">
-                {w.location.name} · {w.current.humidity}% humidity ·{' '}
-                {Math.round(w.current.windSpeed)} {w.units.wind}
+                {w.location.name} · {w.current.humidity}% humidity
+                {windInfo ? ` · ${windInfo.speed} ${windInfo.unit}` : ''}
               </div>
             </div>
             <div style={{ marginLeft: 'auto' }}>
               <Sparkline
-                values={w.hourly.map((h) => h.temperature)}
+                values={w.hourly.map((h) => toDisplayTemp(h.temperature, unit))}
                 width={92}
                 height={34}
                 fill
                 label={`Temperature over the next ${w.hourly.length} hours`}
+                formatValue={(v) => `${Math.round(v)}${tempUnitSymbol}`}
               />
               <div
                 style={{
@@ -148,13 +194,22 @@ export function WeatherPanel({ place, onPlaceChange, autoRefreshMs }: Props) {
 
           <div className="weather-days">
             {w.daily.slice(0, 7).map((d, i) => (
-              <div className="weather-day" key={d.date} title={`${d.condition.label} · ${d.precipitationChance}% precipitation`}>
+              <div
+                className="weather-day"
+                key={d.date}
+                title={`${d.condition.label} · ${d.precipitationChance}% precipitation`}
+              >
                 <div className="dow">{dayName(d.date, i)}</div>
                 <div className="ico" aria-hidden="true">
                   {d.condition.icon}
                 </div>
-                <div className="hi">{Math.round(d.max)}°</div>
-                <div className="lo">{Math.round(d.min)}°</div>
+                <div className="hi">{toDisplayTemp(d.max, unit)}°</div>
+                <div className="lo">{toDisplayTemp(d.min, unit)}°</div>
+                {d.precipitationChance > 10 && (
+                  <div className="precip-badge" title={`${d.precipitationChance}% rain/snow`}>
+                    💧{d.precipitationChance}%
+                  </div>
+                )}
               </div>
             ))}
           </div>
